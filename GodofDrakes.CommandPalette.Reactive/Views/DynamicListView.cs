@@ -1,4 +1,6 @@
 ﻿using System.Collections.ObjectModel;
+using System.Reactive.Disposables;
+using System.Reactive.Disposables.Fluent;
 using System.Reactive.Linq;
 using DynamicData;
 using GodofDrakes.CommandPalette.Reactive.ViewModels;
@@ -8,20 +10,12 @@ using ReactiveUI;
 
 namespace GodofDrakes.CommandPalette.Reactive.Views;
 
-public abstract partial class DynamicListView : DynamicListPage
-{
-	internal DynamicListView() { }
-
-	internal static IObservable<IChangeSet<IListItem, IListItem>> Connect( DynamicListViewModel? viewModel )
-	{
-		return viewModel?.Connect() ?? Observable.Never<IChangeSet<IListItem, IListItem>>();
-	}
-}
-
 // A DynamicListView driven by a view model
-public partial class DynamicListView<T> : DynamicListView
+public partial class DynamicListView<T> : DynamicListPage, IDisposable
 	where T : DynamicListViewModel
 {
+	private readonly CompositeDisposable _onDispose = [];
+
 	private readonly ReadOnlyObservableCollection<IListItem> _listItems;
 
 	// Not IViewFor since CmdPal doesn't support any kind of activation messages
@@ -29,12 +23,17 @@ public partial class DynamicListView<T> : DynamicListView
 
 	public DynamicListView()
 	{
-		this.WhenAnyValue( x => x.ViewModel )
-			.Select( Connect )
-			.Switch()
+		var builder = ListViewBuilder.Create( this, view => view.ViewModel );
+
+		builder.ListItems
 			.Bind( out _listItems )
 			.Do( _ => RaiseItemsChanged() )
-			.Subscribe();
+			.Subscribe()
+			.DisposeWith( _onDispose );
+
+		builder.IsLoading
+			.BindTo( this, view => view.IsLoading )
+			.DisposeWith( _onDispose );
 	}
 
 	public T? ViewModel
@@ -69,5 +68,19 @@ public partial class DynamicListView<T> : DynamicListView
 	public sealed override IListItem[] GetItems()
 	{
 		return _listItems.ToArray();
+	}
+
+	protected virtual void Dispose( bool disposing )
+	{
+		if ( disposing )
+		{
+			_onDispose.Dispose();
+		}
+	}
+
+	public void Dispose()
+	{
+		Dispose( true );
+		GC.SuppressFinalize( this );
 	}
 }
