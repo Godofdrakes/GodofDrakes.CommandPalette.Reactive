@@ -8,41 +8,57 @@ using ReactiveUI;
 
 namespace GodofDrakes.CommandPalette.Reactive.Views;
 
-internal class ListViewBuilder
+internal static class ListViewBuilder
 {
-	private static IObservable<IChangeSet<IListItem, IListItem>> ConnectViewModel( ListViewModel? viewModel )
-	{
-		return viewModel?.Connect() ?? Observable.Never<IChangeSet<IListItem, IListItem>>();
-	}
-
-	private readonly IObservable<ListViewModel?> _viewModel;
-
-	public static ListViewBuilder Create<TView, TViewModel>( TView view,
+	public static ListViewBuilder<TViewModel> Create<TView, TViewModel>(
+		TView view,
 		Expression<Func<TView, TViewModel?>> viewModel )
 		where TViewModel : ListViewModel
 	{
 		ArgumentNullException.ThrowIfNull( view );
 		ArgumentNullException.ThrowIfNull( viewModel );
 
-		return new ListViewBuilder( view.WhenAnyValue( viewModel ) );
+		return new ListViewBuilder<TViewModel>( view.WhenAnyValue( viewModel ) );
 	}
+}
 
-	private ListViewBuilder( IObservable<ListViewModel?> viewModel )
+internal class ListViewBuilder<TViewModel>
+	where TViewModel : ListViewModel
+{
+	private readonly IObservable<TViewModel?> _viewModel;
+
+	internal ListViewBuilder( IObservable<TViewModel?> viewModel )
 	{
 		ArgumentNullException.ThrowIfNull( viewModel );
 
 		_viewModel = viewModel;
 	}
 
-	public IObservable<IChangeSet<IListItem, IListItem>> ListItems
+	public IObservable<IChangeSet<IListItem, string>> ListItems
 	{
-		get => _viewModel.Select( ConnectViewModel ).Switch();
+		get
+		{
+			return _viewModel.Select( ListItems ).Switch();
+
+			static IObservable<IChangeSet<IListItem, string>> ListItems( TViewModel? viewModel )
+			{
+				if ( viewModel is not null )
+				{
+					return viewModel.Connect();
+				}
+
+				return Observable.Never<IChangeSet<IListItem, string>>();
+			}
+		}
 	}
 
 	public IObservable<bool> IsLoading
 	{
-		get => _viewModel
-			.Select( vm =>
+		get
+		{
+			return _viewModel.Select( IsLoading ).Switch();
+
+			static IObservable<bool> IsLoading( TViewModel? vm )
 			{
 				if ( vm is INotifyLoading source )
 				{
@@ -50,7 +66,7 @@ internal class ListViewBuilder
 				}
 
 				return Observable.Never<bool>().Prepend( false );
-			} )
-			.Switch();
+			}
+		}
 	}
 }

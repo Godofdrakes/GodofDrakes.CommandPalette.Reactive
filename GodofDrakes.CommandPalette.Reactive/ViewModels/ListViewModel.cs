@@ -7,7 +7,7 @@ namespace GodofDrakes.CommandPalette.Reactive.ViewModels;
 
 public abstract class ListViewModel : ReactiveObject
 {
-	public abstract IObservable<IChangeSet<IListItem, IListItem>> Connect();
+	public abstract IObservable<IChangeSet<IListItem, string>> Connect();
 }
 
 public sealed class ReadOnlyListViewModel : ListViewModel
@@ -20,16 +20,21 @@ public sealed class ReadOnlyListViewModel : ListViewModel
 		init => _listItems = value.ToArray();
 	}
 
-	public override IObservable<IChangeSet<IListItem, IListItem>> Connect()
+	public override IObservable<IChangeSet<IListItem, string>> Connect()
 	{
-		return ObservableChangeSet.Create( CreateChangeSet, ( IListItem listItem ) => listItem );
-	}
+		return ObservableChangeSet.Create<IListItem, string>( LoadListItems, CreateItemKey );
 
-	private IDisposable CreateChangeSet( ISourceCache<IListItem, IListItem> cache )
-	{
-		// Seed the initial list and then never update
-		cache.AddOrUpdate( ListItems );
+		IDisposable LoadListItems( ISourceCache<IListItem, string> cache )
+		{
+			// Seed the initial list and then never update
+			cache.AddOrUpdate( ListItems );
 
-		return Disposable.Empty;
+			return Disposable.Empty;
+		}
+
+		string CreateItemKey( IListItem listItem )
+		{
+			return Guid.NewGuid().ToString();
+		}
 	}
 }
